@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "app/api/analyze-image/route.js", "lib/supabaseClient.js"  ],
   "exclude": ["node_modules"]
 }
