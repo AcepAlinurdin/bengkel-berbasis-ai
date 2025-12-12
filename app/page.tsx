@@ -3,38 +3,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Bot, LogIn, Loader2, Ticket, User, Clock, Wrench, 
-  RefreshCw, Activity, Search, Phone, Bike
+  Activity, Search, Phone, Bike, Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { getTodayDate } from '@/lib/utils';
-
-// --- COMPONENT: STATUS MEKANIK ---
-const MechanicStatusUser = ({ mechanics, tickets }: { mechanics: any[], tickets: any[] }) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-      {mechanics.map((mech) => {
-        const currentJob = tickets.find(t => t.mechanic_id === mech.id && t.status === 'processing');
-        return (
-          <div key={mech.id} className={`p-4 rounded-xl border flex flex-col gap-2 transition-all shadow-sm ${currentJob ? 'bg-white border-blue-200 ring-2 ring-blue-50' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
-            <div className="flex items-center gap-3">
-               <div className={`p-2 rounded-full ${currentJob ? 'bg-blue-50 text-blue-600' : 'bg-slate-200 text-slate-500'}`}>
-                  <Wrench size={18} />
-               </div>
-               <div>
-                  <span className={`font-bold text-sm block ${currentJob ? 'text-slate-800' : 'text-slate-500'}`}>{mech.name}</span>
-                  <span className="text-[10px] text-slate-400">{currentJob ? 'Sedang Bekerja' : 'Menunggu Order'}</span>
-               </div>
-            </div>
-            {currentJob && (
-                <div className="bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 flex justify-between items-center mt-1 animate-pulse">
-                    <span className="text-[10px] text-blue-600 font-bold uppercase">Mengerjakan:</span>
-                    <span className="text-sm font-black text-blue-700">A-{currentJob.no_antrian}</span>
-                </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-);
 
 // --- COMPONENT: TICKET CARD ---
 const TicketCard = ({ item, mechName }: any) => {
@@ -73,7 +45,7 @@ const TicketCard = ({ item, mechName }: any) => {
               </span>
            </div>
            
-           {mechName && item.status === 'processing' && (
+           {mechName && ['processing', 'waiting_part', 'pending'].includes(item.status) && (
                <div className="text-xs text-blue-600 mb-3 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded w-fit border border-blue-100 font-medium">
                    <Wrench size={12}/> Dikerjakan oleh: {mechName}
                </div>
@@ -111,16 +83,13 @@ export default function UserPage() {
   const [checkingPlate, setCheckingPlate] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
-  // --- 1. FETCH DATA (FILTER: HANYA YG BELUM SELESAI) ---
+  // --- 1. FETCH DATA (FIXED: Show All Active Tickets Regardless of Date) ---
   const fetchData = useCallback(async () => {
-      const today = getTodayDate();
-      
       const { data: qData } = await supabase
         .from('Antrian')
         .select('*')
-        // Filter: Hanya tampilkan antrian hari ini
-        .gte('created_at', today)
-        // LOGIC BARU: Sembunyikan yang sudah selesai/batal/bayar
+        // HANYA FILTER STATUS YANG BELUM SELESAI
+        // (Status: 'done', 'cancelled', 'paid' dianggap selesai dan hilang dari layar user)
         .not('status', 'in', '("done","cancelled","paid")')
         .order('created_at', { ascending: true });
         
@@ -135,9 +104,7 @@ export default function UserPage() {
       if(plate.length < 3) return;
       setCheckingPlate(true);
       const cleanPlate = plate.toUpperCase().replace(/\s/g, '');
-      
       const { data } = await supabase.from('Customers').select('*').eq('plate_number', cleanPlate).single();
-      
       if(data) {
           setName(data.name);
           setPhone(data.phone || '');
@@ -186,6 +153,8 @@ export default function UserPage() {
         }
 
         setStatusMessage('Mencetak Tiket...');
+        
+        // UNTUK NOMOR ANTRIAN: Kita tetap hitung berdasarkan HARI INI agar urutannya logis (A-1, A-2)
         const today = getTodayDate();
         const { count } = await supabase.from('Antrian').select('*', { count: 'exact', head: true }).gte('created_at', today);
         const nextNumber = (count || 0) + 1;
@@ -197,7 +166,8 @@ export default function UserPage() {
             ai_analysis: aiResult.analysis,
             estimated_mins: aiResult.estimated_mins,
             status: 'waiting', 
-            no_antrian: nextNumber 
+            no_antrian: nextNumber,
+            rincian_biaya: aiResult.rincian_biaya || [] 
         }]);
 
         setPlate(''); setName(''); setPhone(''); setIssue(''); setIsExistingCustomer(false);
@@ -233,9 +203,53 @@ export default function UserPage() {
 
       <div className="grid lg:grid-cols-12 gap-8 max-w-7xl mx-auto">
         
-        {/* Form Ambil Antrian (Left Column - Sticky) */}
-        <div className="lg:col-span-4">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg sticky top-6">
+        {/* KOLOM KIRI: FORM & STATUS MEKANIK (STICKY) */}
+        <div className="lg:col-span-4 space-y-6">
+            
+            {/* 1. STATUS MEKANIK (COMPACT LIST VIEW) */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden">
+                <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase">
+                       <Users size={16} className="text-blue-500"/> Mekanik Bertugas
+                    </h3>
+                    <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">{mechanics.length} Orang</span>
+                </div>
+                
+                <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
+                    {mechanics.length === 0 && <p className="text-center text-xs text-slate-400 py-4 italic">Tidak ada mekanik aktif.</p>}
+                    
+                    {mechanics.map(mech => {
+                        const currentJob = queue.find(t => 
+                            t.mechanic_id === mech.id && 
+                            ['processing', 'waiting_part', 'pending'].includes(t.status)
+                        );
+                        
+                        return (
+                            <div key={mech.id} className="flex items-center justify-between px-5 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${currentJob ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} title={currentJob ? "Sibuk" : "Ready"}></div>
+                                    <span className="text-sm font-bold text-slate-700">{mech.name}</span>
+                                </div>
+
+                                {currentJob ? (
+                                    <div className="flex items-center gap-1.5 bg-orange-50 px-2 py-1 rounded text-[10px] text-orange-700 border border-orange-100 font-medium">
+                                        <Wrench size={10}/>
+                                        <span>A-{currentJob.no_antrian}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-medium">Ready</span>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                {mechanics.length > 2 && (
+                    <div className="text-[9px] text-center bg-slate-50 text-slate-400 py-0.5">Scroll untuk melihat lainnya</div>
+                )}
+            </div>
+
+            {/* 2. FORM AMBIL ANTRIAN */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg">
                 <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
                     <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Ticket size={20}/></div>
                     <h2 className="text-lg font-bold text-slate-800">Ambil Antrian</h2>
@@ -288,24 +302,13 @@ export default function UserPage() {
             </div>
         </div>
 
-        {/* Status & List Antrian (Right Column) */}
+        {/* KOLOM KANAN: LIST ANTRIAN (SCROLLABLE) */}
         <div className="lg:col-span-8 space-y-6">
-            
-            {/* Status Mekanik */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2"><Wrench size={16} className="text-blue-500"/> Status Mekanik</h3>
-                    <button onClick={fetchData} className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-full font-bold flex items-center gap-1 transition"><RefreshCw size={12}/> Refresh</button>
-                </div>
-                <MechanicStatusUser mechanics={mechanics} tickets={queue} />
-            </div>
-
-            {/* List Kartu SCROLLABLE */}
             <div>
                 <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 ml-1">Antrian Berjalan</h3>
                 
                 {/* SCROLL CONTAINER (FIXED HEIGHT) */}
-                <div className="h-[600px] overflow-y-auto custom-scrollbar pr-2 space-y-4">
+                <div className="h-[800px] overflow-y-auto custom-scrollbar pr-2 space-y-4">
                     {queue.length === 0 ? (
                         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
                             <Bike size={48} className="text-slate-300 mx-auto mb-2"/>

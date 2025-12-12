@@ -31,8 +31,6 @@ export default function KasirPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceFee, setServiceFee] = useState<string>(''); 
   const [loading, setLoading] = useState(false);
-  
-  // State animasi loading saat tombol AI ditekan
   const [aiThinking, setAiThinking] = useState(false); 
 
   // --- FETCH DATA ---
@@ -63,12 +61,10 @@ export default function KasirPage() {
   const handleSelectTicket = (ticket: any) => { 
     setSelectedTicket(ticket); 
     setServiceFee('');
-    // KITA KOSONGKAN CART AGAR KASIR BISA MEMILIH: MANUAL ATAU TOMBOL AI
     setCart([]); 
   };
 
-  // --- FITUR UTAMA: TOMBOL AI GENERATOR ---
-  // --- FITUR UTAMA: TOMBOL AI GENERATOR (REAL DATABASE) ---
+  // --- FITUR UTAMA: TOMBOL AI GENERATOR (UPDATED LOGIC) ---
   const handleGenerateAiCart = async () => {
     if (!selectedTicket) return;
     setAiThinking(true);
@@ -78,60 +74,47 @@ export default function KasirPage() {
 
     try {
         let generatedItems: CartItem[] = [];
+        let totalEstJasa = 0; // Variabel penampung akumulasi biaya jasa
 
-        // Helper function: Cari barang di inventory berdasarkan kata kunci
-        // Fungsi ini akan mencari barang pertama yang namanya mengandung salah satu kata kunci
         const findInInventory = (keywords: string[]) => {
             return inventory.find(item => 
                 keywords.some(k => item.nama_barang.toLowerCase().includes(k))
             );
         };
 
-        // SKENARIO 1: Cek Data Database (Prioritas Utama - Jika Mekanik sudah input)
+        // SKENARIO 1: Prioritas Data Database (Jika Mekanik sudah input detail)
         if (selectedTicket.rincian_biaya && Array.isArray(selectedTicket.rincian_biaya) && selectedTicket.rincian_biaya.length > 0) {
             generatedItems = selectedTicket.rincian_biaya;
         } 
-        // SKENARIO 2: Fallback Pintar (Cari Barang di Inventory Real-time)
+        // SKENARIO 2: AI Analisis Teks
         else {
             const issueText = selectedTicket.issue.toLowerCase();
             
-            // --- 1. DETEKSI OLI ---
+            // --- 1. OLI ---
             if (issueText.includes('oli')) {
-                // Cari barang di inventory yang namanya mengandung 'oli', 'mpx', 'shell', atau 'motul'
                 const part = findInInventory(['oli', 'mpx', 'shell', 'motul', 'yamalube']);
-                
+                // HANYA MASUKKAN JIKA ADA DI INVENTORY
                 if (part) {
                     generatedItems.push({ 
-                        id: part.id, 
-                        name: part.nama_barang, // Nama Asli dari DB
-                        price: part.harga_jual, // Harga Asli dari DB
-                        qty: 1, 
-                        type: 'part', 
-                        original_stok: part.stok 
+                        id: part.id, name: part.nama_barang, price: part.harga_jual, qty: 1, type: 'part', original_stok: part.stok 
                     });
                 }
-                // Tambah Jasa (Tetap manual/hardcode karena jasa biasanya tidak ada di inventory barang)
-                generatedItems.push({ id: 'ai-jasa-oli', name: 'Jasa Ganti Oli', price: 10000, qty: 1, type: 'service' });
+                // Tambah estimasi biaya jasa (akumulasi)
+                totalEstJasa += 15000; 
             }
 
-            // --- 2. DETEKSI REM ---
+            // --- 2. REM ---
             if (issueText.includes('rem') || issueText.includes('kampas')) {
                 const part = findInInventory(['kampas', 'dispad', 'brake']);
-                
                 if (part) {
                     generatedItems.push({ 
-                        id: part.id, 
-                        name: part.nama_barang, 
-                        price: part.harga_jual, 
-                        qty: 1, 
-                        type: 'part', 
-                        original_stok: part.stok 
+                        id: part.id, name: part.nama_barang, price: part.harga_jual, qty: 1, type: 'part', original_stok: part.stok 
                     });
                 }
-                generatedItems.push({ id: 'ai-jasa-rem', name: 'Jasa Pasang Kampas Rem', price: 20000, qty: 1, type: 'service' });
+                totalEstJasa += 20000;
             }
 
-            // --- 3. DETEKSI BUSI ---
+            // --- 3. BUSI ---
             if (issueText.includes('busi') || issueText.includes('brebet')) {
                 const part = findInInventory(['busi', 'ngk', 'denso']);
                 if (part) {
@@ -139,9 +122,10 @@ export default function KasirPage() {
                         id: part.id, name: part.nama_barang, price: part.harga_jual, qty: 1, type: 'part', original_stok: part.stok 
                     });
                 }
+                totalEstJasa += 10000; // Jasa pasang busi ringan
             }
 
-            // --- 4. DETEKSI BAN ---
+            // --- 4. BAN ---
             if (issueText.includes('ban') || issueText.includes('bocor')) {
                 const part = findInInventory(['ban', 'irc', 'fdr', 'maxxis']);
                 if (part) {
@@ -149,28 +133,36 @@ export default function KasirPage() {
                         id: part.id, name: part.nama_barang, price: part.harga_jual, qty: 1, type: 'part', original_stok: part.stok 
                     });
                 }
-                generatedItems.push({ id: 'ai-jasa-ban', name: 'Jasa Pasang Ban', price: 15000, qty: 1, type: 'service' });
+                totalEstJasa += 15000;
             }
 
-            // --- 5. DETEKSI CVT ---
+            // --- 5. CVT ---
             if (issueText.includes('cvt') || issueText.includes('vanbelt') || issueText.includes('roller')) {
-                 // Coba cari Vanbelt dulu
                  const part = findInInventory(['vbelt', 'vanbelt', 'roller']);
                  if (part) {
                     generatedItems.push({ 
                         id: part.id, name: part.nama_barang, price: part.harga_jual, qty: 1, type: 'part', original_stok: part.stok 
                     });
                  }
-                 generatedItems.push({ id: 'ai-jasa-cvt', name: 'Jasa Servis & Bersihkan CVT', price: 45000, qty: 1, type: 'service' });
+                 totalEstJasa += 45000; // Servis CVT agak mahal
             }
 
-            // --- JASA UMUM (DEFAULT) ---
-            const hasService = generatedItems.some(i => i.type === 'service');
-            if (!hasService && generatedItems.length === 0) {
-                // Jika tidak menemukan barang APAPUN dan tidak ada jasa, kemungkinan deskripsi tidak jelas
-                // Masukkan jasa cek umum saja
-                generatedItems.push({ id: 'ai-jasa-umum', name: 'Jasa Service Ringan & Pengecekan', price: 35000, qty: 1, type: 'service' });
+            // --- 6. MESIN BERAT ---
+            if (issueText.includes('mogok') || issueText.includes('turun') || issueText.includes('mesin')) {
+                totalEstJasa += 150000; // Estimasi awal servis berat
             }
+
+            // --- FINALISASI JASA (SATU ITEM SAJA) ---
+            // Jika tidak ada deteksi apapun, kasih minimal jasa cek umum (25rb)
+            if (totalEstJasa === 0) totalEstJasa = 25000;
+
+            generatedItems.push({
+                id: 'ai-jasa-total',
+                name: 'Biaya Jasa Perbaikan (Estimasi AI)',
+                price: totalEstJasa,
+                qty: 1,
+                type: 'service'
+            });
         }
 
         setCart(generatedItems);
