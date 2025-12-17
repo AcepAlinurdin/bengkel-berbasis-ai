@@ -7,7 +7,7 @@ export async function POST(req) {
   try {
     const { data } = await req.json(); // Data format: [{name: "Budi", jobs: ["Ganti Oli", "Turun Mesin"]}]
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
       Saya adalah pemilik bengkel. Berikut adalah laporan pekerjaan mekanik saya hari ini:
