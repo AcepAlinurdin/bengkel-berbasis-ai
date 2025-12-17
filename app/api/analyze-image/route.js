@@ -69,7 +69,7 @@ export async function POST(req) {
     if (!imageBase64) return NextResponse.json({ error: "No image data" }, { status: 400 });
 
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-lite",
+        model: "gemini-2.5-flash",
         generationConfig: { temperature: 0.0, topP: 1, maxOutputTokens: 2000 }
     });
 

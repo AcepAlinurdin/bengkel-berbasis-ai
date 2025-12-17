@@ -22,7 +22,7 @@ export async function POST(req) {
     }));
 
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-tts",
+        model: "gemini-2.5-flash",
         generationConfig: { 
             responseMimeType: "application/json",
             temperature: 0.1 

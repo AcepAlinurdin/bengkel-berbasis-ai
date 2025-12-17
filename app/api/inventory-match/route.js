@@ -15,7 +15,7 @@ export async function POST(req) {
     // GUNAKAN MODEL GEMINI 1.5 FLASH (Lebih cepat & patuh instruksi JSON)
     // Tambahkan generationConfig untuk memaksa response JSON
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-lite",
+        model: "gemini-2.5-flash",
         generationConfig: { responseMimeType: "application/json" } 
     });
 

@@ -20,9 +20,15 @@ export default function PerformancePage() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      // Ambil data mekanik yang aktif
       const { data: mData } = await supabase.from('Mechanics').select('*').eq('is_active', true);
-      // Ambil tiket yang sudah selesai
-      const { data: tData } = await supabase.from('Antrian').select('*').eq('status', 'done');
+      
+      // Ambil tiket yang sudah selesai, termasuk tingkat kesulitannya
+      // PENTING: Pastikan kolom 'complexity_level' sudah ada di tabel 'Antrian'
+      const { data: tData } = await supabase
+        .from('Antrian')
+        .select('mechanic_id, complexity_level') 
+        .eq('status', 'done');
 
       if (mData) setMechanics(mData);
       if (tData) setTickets(tData);
@@ -36,11 +42,14 @@ export default function PerformancePage() {
     setAnalyzing(true);
     
     // Siapkan data untuk AI
+    // Sekarang kita menyertakan 'complexity_level' (Tingkat Kesulitan) dalam data yang dikirim ke AI
     const reportData = mechanics.map(mech => {
         const myJobs = tickets.filter(t => t.mechanic_id === mech.id);
         return {
             name: mech.name,
-            jobs: myJobs.map(t => t.issue) // List keluhan yang dikerjakan
+            // Kirim daftar tingkat kesulitan pekerjaan yang telah diselesaikan
+            // Contoh: ['Ringan', 'Berat', 'Sedang', 'Ringan']
+            complexity_levels: myJobs.map(t => t.complexity_level).filter(Boolean) // Filter untuk memastikan tidak ada nilai null/undefined
         };
     });
 
@@ -65,7 +74,7 @@ export default function PerformancePage() {
     <div className="min-h-screen bg-gray-50 text-slate-800 p-6 font-mono">
       <PageHeader 
         title="Analisis Performa HR" 
-        subtitle="Evaluasi Kinerja Mekanik Berbasis AI"
+        subtitle="Evaluasi Kinerja Mekanik Berbasis AI (Mempertimbangkan Tingkat Kesulitan Pekerjaan)"
         icon={Trophy}
         
       />
@@ -77,9 +86,9 @@ export default function PerformancePage() {
               <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <BarChart size={32}/>
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">Evaluasi Produktivitas</h2>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">Evaluasi Produktivitas & Kualitas</h2>
               <p className="text-slate-500 text-sm mb-6 max-w-lg mx-auto">
-                  AI akan membaca riwayat pekerjaan (tingkat kesulitan & jumlah) untuk memberikan skor objektif dan julukan bagi setiap mekanik.
+                  AI akan menganalisis riwayat pekerjaan, termasuk jumlah dan **tingkat kesulitan (Ringan/Sedang/Berat)**, untuk memberikan skor kinerja yang objektif.
               </p>
               
               {!analyzing && aiResult.length === 0 && (
@@ -161,7 +170,7 @@ export default function PerformancePage() {
                       return (
                           <div key={m.id} className="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center">
                               <span className="font-bold text-slate-700">{m.name}</span>
-                              <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 border border-slate-200 font-mono">{count} Jobs</span>
+                              <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 border border-slate-200 font-mono">{count} Jobs Selesai</span>
                           </div>
                       );
                   })}

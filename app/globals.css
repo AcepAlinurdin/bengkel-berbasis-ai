@@ -2,29 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- CSS untuk Media Cetak (Print Struk) --- */
+@media print {
+    /*
+      Sembunyikan semua elemen anak langsung dari body,
+      KECUALI elemen dengan ID 'print-area' (yang dirender via Portal).
+      Ini adalah cara yang lebih aman untuk memastikan hanya struk yang dicetak.
+    */
+    body > *:not(#print-area) {
+        display: none !important;
+    }
+
+    /* Pastikan area cetak terlihat dan menempati lebar penuh */
+    #print-area {
+        display: block !important;
+        width: 100%;
+        /* Gaya font struk sudah ditangani di dalam komponen PrintStruk.tsx */
+    }
+
+    /* Hapus margin default halaman browser saat mencetak */
+    @page {
+        margin: 0;
+        /* Opsional: Atur ukuran kertas jika menggunakan printer termal */
+        /* size: 80mm auto; */
+    }
+}
+
+/* --- Variabel CSS Global --- */
 :root {
   --foreground-rgb: 15, 23, 42; /* Slate 900 */
   --background-start-rgb: 248, 250, 252; /* Slate 50 */
   --background-end-rgb: 248, 250, 252;
 }
 
+/* --- Gaya Dasar Body --- */
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
+  /* Penting: Pastikan body bisa discroll jika kontennya panjang */
+  overflow-x: hidden;
 }
 
-/* Custom Scrollbar yang lebih cantik & tipis */
+/* --- Custom Scrollbar yang Lebih Cantik & Tipis --- */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f1f5f9; /* slate-100 */
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #cbd5e1; /* slate-300 */
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #94a3b8; /* slate-400 */
 }

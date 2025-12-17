@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // Import createPortal
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { 
   ShoppingCart, Search, Plus, CreditCard, 
   User, Wrench, Loader2, Minus, Printer, LogOut, Bot, Sparkles,
-  CheckCircle, AlertTriangle, Info, X, ChevronRight, Package as PackageIcon, Grid
+  CheckCircle, AlertTriangle, Info, ChevronRight, Package as PackageIcon, Grid
 } from 'lucide-react';
-import PageHeader from '@/components/PageHeader';
+// import PageHeader from '@/components/PageHeader'; // Tidak digunakan dalam kode ini
 import { useRoleGuard } from '@/lib/authGuard';
+import PrintStruk from '@/components/PrintStruk'; // Import komponen PrintStruk
 
 // Tipe data
 type CartItem = {
@@ -19,6 +21,14 @@ type CartItem = {
   qty: number;
   type: 'part' | 'service';
   original_stok?: number; 
+};
+
+// --- TIPE BARU UNTUK KONFIGURASI TOKO ---
+type ShopConfig = {
+  shop_name: string;
+  address: string;
+  phone: string;
+  footer_msg: string;
 };
 
 // --- KOMPONEN ALERT CUSTOM ---
@@ -60,13 +70,17 @@ export default function KasirPage() {
   const { role, loading: authLoading } = useRoleGuard(['owner', 'kasir', 'admin']);
   
   const [readyTickets, setReadyTickets] = useState<any[]>([]); 
-  const [inventory, setInventory] = useState<any[]>([]);       
+  const [inventory, setInventory] = useState<any[]>([]);      
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceFee, setServiceFee] = useState<string>(''); 
   const [loading, setLoading] = useState(false);
-  const [aiThinking, setAiThinking] = useState(false); 
+  const [aiThinking, setAiThinking] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false); // State untuk mengontrol pencetakan
+  
+  // --- STATE BARU UNTUK MENYIMPAN KONFIGURASI TOKO ---
+  const [shopConfig, setShopConfig] = useState<ShopConfig | null>(null);
 
   // --- STATE ALERT ---
   const [alertConfig, setAlertConfig] = useState({
@@ -84,8 +98,9 @@ export default function KasirPage() {
     setAlertConfig(prev => ({ ...prev, isOpen: false }));
   };
 
-  // --- FETCH DATA ---
+  // --- FETCH DATA (DIPERBARUI) ---
   const fetchData = async () => {
+    // 1. Ambil data tiket antrian selesai
     const { data: tickets } = await supabase
       .from('Antrian')
       .select('*') 
@@ -93,12 +108,29 @@ export default function KasirPage() {
       .order('created_at', { ascending: true });
     if (tickets) setReadyTickets(tickets);
 
+    // 2. Ambil data inventory
     const { data: items } = await supabase
       .from('Inventory')
       .select('*')
       .gt('stok', 0)
       .order('nama_barang', { ascending: true });
     if (items) setInventory(items);
+
+    // --- 3. BAGIAN BARU: Ambil Pengaturan Toko dari tabel Settings ---
+    // Kita asumsikan pengaturan utama disimpan di baris dengan id = 1
+    const { data: configData, error: configError } = await supabase
+      .from('Settings')
+      .select('*')
+      .eq('id', 1) 
+      .single();
+
+    if (configError) {
+      console.error("Gagal mengambil pengaturan toko untuk struk:", configError);
+      // Opsional: Anda bisa menampilkan alert jika data setting gagal diambil, 
+      // atau membiarkannya null agar PrintStruk menggunakan nilai defaultnya.
+    } else if (configData) {
+      setShopConfig(configData);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -113,6 +145,19 @@ export default function KasirPage() {
     setSelectedTicket(ticket); 
     setServiceFee('');
     setCart([]); 
+  };
+
+  // Fungsi baru untuk menangani pencetakan dengan Portal
+  const handlePrint = () => {
+    setIsPrinting(true);
+    // Beri sedikit waktu agar Portal bisa merender kontennya sebelum window.print() dipanggil
+    // Waktu 100ms biasanya cukup, tapi bisa disesuaikan jika perlu
+    setTimeout(() => {
+        window.print();
+        // Kembalikan state setelah dialog cetak ditutup (atau setelah print dipanggil)
+        // Kita gunakan setTimeout lagi untuk memastikan ini terjadi setelah dialog cetak muncul/ditutup
+        setTimeout(() => setIsPrinting(false), 500); 
+    }, 100);
   };
 
   // --- FITUR UTAMA: AI CART GENERATOR (PURE AI) ---
@@ -385,7 +430,7 @@ export default function KasirPage() {
           </div>
 
           {/* KOLOM 3: CHECKOUT (Checkout Panel Modern) */}
-          <div className="lg:col-span-4 bg-white border-l border-slate-200 flex flex-col h-[600px] lg:h-full z-20 shadow-xl lg:shadow-none">
+          <div className="lg:col-span-4 bg-white border-l border-slate-200 flex flex-col h-full lg:h-full z-20 shadow-xl lg:shadow-none relative overflow-hidden">
               
               {/* Customer Header */}
               <div className="p-6 bg-gradient-to-b from-white to-slate-50 border-b border-slate-200 shrink-0">
@@ -414,12 +459,12 @@ export default function KasirPage() {
                                 <div>
                                     <p className="text-sm font-medium text-slate-500 mb-2">Keranjang Kosong</p>
                                     <button 
-                                        onClick={handleGenerateAiCart}
-                                        disabled={aiThinking}
-                                        className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:bg-black transition-all flex items-center gap-2 mx-auto disabled:opacity-70"
+                                              onClick={handleGenerateAiCart}
+                                              disabled={aiThinking}
+                                              className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:bg-black transition-all flex items-center gap-2 mx-auto disabled:opacity-70"
                                     >
-                                        {aiThinking ? <Loader2 className="animate-spin" size={16}/> : <Bot size={16} className="text-yellow-400"/>}
-                                        {aiThinking ? "Menganalisa..." : "ISI OTOMATIS (AI)"}
+                                              {aiThinking ? <Loader2 className="animate-spin" size={16}/> : <Bot size={16} className="text-yellow-400"/>}
+                                              {aiThinking ? "Menganalisa..." : "ISI OTOMATIS (AI)"}
                                     </button>
                                 </div>
                               </>
@@ -465,10 +510,12 @@ export default function KasirPage() {
                   </div>
                   
                   <div className="grid grid-cols-3 gap-3">
-                      <button onClick={() => window.print()} disabled={!selectedTicket} className="col-span-1 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-100 flex flex-col items-center justify-center py-3 gap-1 shadow-sm transition active:scale-95 disabled:opacity-50">
+                      {/* Tombol Cetak */}
+                      <button onClick={handlePrint} disabled={!selectedTicket} className="col-span-1 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-100 flex flex-col items-center justify-center py-3 gap-1 shadow-sm transition active:scale-95 disabled:opacity-50">
                           <Printer size={20}/>
                           <span className="text-[10px] uppercase tracking-wide">Cetak</span>
                       </button>
+                      {/* Tombol Bayar */}
                       <button onClick={handleCheckout} disabled={loading || !selectedTicket} className="col-span-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl font-bold hover:shadow-lg hover:to-black flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                           {loading ? <Loader2 className="animate-spin"/> : (
                               <>
@@ -482,6 +529,23 @@ export default function KasirPage() {
           </div>
 
       </div>
+
+      {/*
+          Render PrintStruk menggunakan Portal saat isPrinting bernilai true.
+          Pastikan kode ini berada di dalam return JSX utama komponen KasirPage.
+      */}
+      {isPrinting && typeof window !== 'undefined' && createPortal(
+        <PrintStruk
+          selectedTicket={selectedTicket}
+          cart={cart}
+          grandTotal={grandTotal}
+          // Gunakan nullish coalescing operator (??) untuk memberikan nilai undefined jika role adalah null
+          role={role ?? undefined}
+          // --- BAGIAN PENTING: Kirim konfigurasi toko ke PrintStruk ---
+          shopConfig={shopConfig}
+        />,
+        document.body // Render di dalam body, di luar root aplikasi Next.js
+      )}
     </div>
   );
 }

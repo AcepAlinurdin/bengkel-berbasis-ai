@@ -16,7 +16,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Keluhan kosong" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Prompt yang ketat agar hanya menerima masalah motor
     const prompt = `Kamu adalah kepala mekanik bengkel motor. Analisis keluhan pelanggan ini: "${issue}".
