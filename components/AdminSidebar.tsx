@@ -74,22 +74,16 @@ export default function AdminSidebar() {
   // --- DAFTAR MENU ---
   const menuItems = [
     { 
+      href: '/admin/dashboard', 
+      label: 'Dasboard', 
+      icon: LayoutDashboard, 
+      allowed: ['owner'] 
+    },
+    { 
       href: '/admin', 
       label: 'Operasional', 
       icon: Bot, 
       allowed: ['owner', 'admin'] 
-    },
-    { 
-      href: '/admin/inventory', 
-      label: 'Gudang', 
-      icon: Package, 
-      allowed: ['owner', 'admin'] 
-    },
-    { 
-      href: '/admin/dashboard', 
-      label: 'Executive', 
-      icon: LayoutDashboard, 
-      allowed: ['owner'] 
     },
     { 
       href: '/admin/kasir', 
@@ -98,15 +92,15 @@ export default function AdminSidebar() {
       allowed: ['owner', 'kasir', 'admin'] 
     },
     { 
-      href: '/admin/recap', 
-      label: 'Rekapitulasi', 
-      icon: FileText, 
-      allowed: ['owner'] 
-    },
-    { 
       href: '/admin/finance', 
       label: 'Keuangan', 
       icon: Wallet, 
+      allowed: ['owner'] 
+    },
+    { 
+      href: '/admin/recap', 
+      label: 'Rekapitulasi', 
+      icon: FileText, 
       allowed: ['owner'] 
     },
     { 
@@ -114,6 +108,12 @@ export default function AdminSidebar() {
       label: 'HR & Performa', 
       icon: BarChart, 
       allowed: ['owner'] 
+    },
+    { 
+      href: '/admin/inventory', 
+      label: 'Gudang', 
+      icon: Package, 
+      allowed: ['owner', 'admin'] 
     },
     { 
       href: '/admin/settings', 
@@ -157,7 +157,7 @@ export default function AdminSidebar() {
           </div>
           <div>
             <h1 className="font-black text-xl text-slate-800 tracking-tight">BENGKEL AI</h1>
-            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full w-fit">System v2.0</p>
+            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full w-fit">Beta 0.1</p>
           </div>
         </div>
 
