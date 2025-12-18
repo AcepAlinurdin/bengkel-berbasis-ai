@@ -31,10 +31,10 @@ const nextConfig = {
             value: 'strict-origin-when-cross-origin'
           },
           {
-            key: 'Content-Security-Policy',
-            // Mengatasi skor -25. 
-            // NOTE: Ini settingan "Aman tapi Longgar" supaya Supabase & AI tetap jalan.
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; font-src 'self'; connect-src 'self' https:;"
+           key: 'Content-Security-Policy',
+            // PERUBAHAN ADA DI BAWAH INI (bagian connect-src):
+            // Kita menambahkan 'wss:' agar Supabase Realtime tidak diblokir.
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; font-src 'self'; connect-src 'self' https: wss:;"
           }
         ]
       }
