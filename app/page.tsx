@@ -142,7 +142,7 @@ export default function UserPage() {
       if(plate.length < 3) return;
       setCheckingPlate(true);
       const cleanPlate = plate.toUpperCase().replace(/\s/g, '');
-      const { data } = await supabase.from('Customers').select('*').eq('plate_number', cleanPlate).single();
+      const { data } = await supabase.from('Customers').select('*').eq('plate_number', cleanPlate).maybeSingle();
       if(data) {
           setName(data.name);
           setPhone(data.phone || '');
