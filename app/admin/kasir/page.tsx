@@ -180,7 +180,7 @@ export default function KasirPage() {
         // STEP BARU: AI BUTTON
         { 
           element: '#tour-ai-button', 
-          popover: { title: '2. Generate Otomatis (AI)', description: 'Gunakan tombol ini untuk memuat sparepart & biaya secara otomatis berdasarkan rekomendasi mekanik/AI.', side: "bottom", align: 'start' } 
+          popover: { title: '2. Generate Otomatis (AI)', description: 'Gunakan tombol ini untuk memuat sparepart & biaya secara otomatis berdasarkan rekomendasi mekanik/AI. Tombol akan aktif setelah antrian dipilih.', side: "bottom", align: 'start' } 
         },
         { 
           element: '#tour-catalog', 
@@ -249,6 +249,12 @@ export default function KasirPage() {
             body: JSON.stringify({ issue: selectedTicket.issue, ai_analysis: selectedTicket.ai_analysis, inventory: inventory })
         });
         const data = await response.json();
+        
+        // --- HANDLE ERROR 429 & 500 ---
+        if (response.status === 429 || (response.status === 500 && data.error?.includes('429'))) {
+             throw new Error("⏳ AI sedang sibuk (Limit Tercapai). Mohon tunggu 10 detik lalu coba lagi.");
+        }
+
         if (!response.ok) throw new Error(data.error || "Gagal mendapatkan rekomendasi AI");
 
         const validatedCart = (data.items || []).map((aiItem: any) => {
@@ -266,7 +272,17 @@ export default function KasirPage() {
             if (partCount > 0) { showAlert('success', 'Rekomendasi AI', `Ditemukan ${partCount} sparepart yang cocok.`); } 
             else { showAlert('info', 'Estimasi Jasa', 'Hanya ditemukan estimasi jasa.'); }
         } else { showAlert('error', 'AI Bingung', 'AI tidak menemukan solusi yang cocok dengan stok saat ini.'); }
-    } catch (error: any) { console.error("AI Cart Error", error); showAlert('error', 'Gagal', 'Terjadi kesalahan pada sistem AI: ' + error.message); } 
+    } catch (error: any) { 
+        console.error("AI Cart Error", error); 
+        
+        // Pesan Error Ramah User
+        let friendlyMsg = error.message;
+        if (error.message.includes('429') || error.message.includes('Quota')) {
+            friendlyMsg = "⏳ Kuota AI Habis Sementara. Tunggu 10 detik lagi ya.";
+        }
+        
+        showAlert('error', 'Gagal', friendlyMsg); 
+    } 
     finally { setAiThinking(false); }
   };
   
@@ -406,19 +422,21 @@ export default function KasirPage() {
                       </div>
                   </div>
 
-                  {/* TOMBOL AI DI PINDAHKAN KE SINI AGAR SELALU TERLIHAT */}
-                  {selectedTicket && (
-                      <button 
-                        id="tour-ai-button"
-                        onClick={handleGenerateAiCart}
-                        disabled={aiThinking}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-                        title="Isi Keranjang Otomatis dengan AI"
-                      >
-                        {aiThinking ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14} className="text-yellow-300"/>}
-                        {aiThinking ? "..." : "AI AUTO"}
-                      </button>
-                  )}
+                  {/* UPDATE TOMBOL AI: SELALU TAMPIL TAPI DISABLED JIKA !selectedTicket */}
+                  <button 
+                    id="tour-ai-button"
+                    onClick={handleGenerateAiCart}
+                    disabled={aiThinking || !selectedTicket} // Disabled jika sedang mikir ATAU belum ada tiket
+                    className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95 border
+                        ${!selectedTicket 
+                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' // Style Non-Aktif
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 border-transparent' // Style Aktif
+                        }`}
+                    title={!selectedTicket ? "Pilih antrian pelanggan dulu!" : "Isi Keranjang Otomatis dengan AI"}
+                  >
+                    {aiThinking ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14} className={!selectedTicket ? "text-slate-400" : "text-yellow-300"}/>}
+                    {aiThinking ? "..." : "AI AUTO"}
+                  </button>
               </div>
 
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-white">
