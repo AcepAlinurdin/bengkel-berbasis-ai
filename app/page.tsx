@@ -365,7 +365,7 @@ export default function UserPage() {
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-200" id="tour-welcome">
          <div className="flex items-center gap-4 mb-4 sm:mb-0">
             <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200"><Bike size={24} /></div>
-            <div><h1 className="text-xl font-black text-slate-800 tracking-tight">BENGKEL TEKNOLOGI</h1><p className="text-xs text-slate-500 font-medium">Sistem Antrian Cerdas Berbasis AI</p></div>
+            <div><h1 className="text-xl font-black text-slate-800 tracking-tight">BENGKEL MOVIO</h1><p className="text-xs text-slate-500 font-medium">Sistem Antrian Cerdas Berbasis AI</p></div>
          </div>
          <div className="flex items-center gap-3">
              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full border border-emerald-100"><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div><span className="text-xs font-bold text-emerald-600">Sistem Live</span></div>
