@@ -44,7 +44,8 @@ const WelcomeTourModal = ({ isOpen, onStart, onSkip }: any) => {
           <h2 className="text-2xl font-black text-slate-800 mb-3">Selamat Datang</h2>
           <p className="text-slate-500 text-sm leading-relaxed mb-8">
             Apakah kamu pertama kali <strong>memakai sistem antrian berbasis AI?</strong> <br/>
-            Saya akan memandu Anda bagaimana cara membuat antrian di sistem antrian bengkel MOVIO ini
+            Saya akan memandu Anda bagaimana cara membuat antrian di sistem antrian bengkel MOVIO ini.
+            jika anda seorang staf bengkel silahkan klik tombol staf untuk masuk ke sistem.
           </p>
 
           <div className="space-y-3">
