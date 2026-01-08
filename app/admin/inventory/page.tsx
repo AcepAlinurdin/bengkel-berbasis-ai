@@ -3,10 +3,27 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Loader2, Package, Save, UploadCloud, Trash2, Sparkles, 
-  X, ScanLine, Plus, Edit2, Truck, AlertTriangle, CheckCircle, Info 
+  X, ScanLine, Plus, Edit2, Truck, AlertTriangle, CheckCircle, Info,
+  HelpCircle, Navigation // Icon tambahan
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { useRoleGuard } from '@/lib/authGuard';
+
+// --- IMPORT DRIVER.JS ---
+import { driver } from "driver.js"; 
+import "driver.js/dist/driver.css"; 
+
+// --- STYLE DRIVER.JS ---
+const driverJsStyles = `
+  .driver-popover.driverjs-theme { background-color: #ffffff; color: #1e293b; border-radius: 16px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; padding: 16px; font-family: inherit; max-width: 320px; }
+  .driver-popover.driverjs-theme .driver-popover-title { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+  .driver-popover.driverjs-theme .driver-popover-description { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 16px; }
+  .driver-popover.driverjs-theme .driver-popover-footer { display: flex; align-items: center; margin-top: 10px; }
+  .driver-popover.driverjs-theme .driver-popover-next-btn { background-color: #2563eb !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 6px 14px !important; font-size: 12px !important; font-weight: 600 !important; }
+  .driver-popover.driverjs-theme .driver-popover-prev-btn { background-color: #f1f5f9 !important; color: #64748b !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 6px 12px !important; font-size: 12px !important; font-weight: 600 !important; margin-right: 8px !important; }
+  .driver-popover.driverjs-theme .driver-popover-close-btn { color: #94a3b8; }
+  .driver-popover.driverjs-theme .driver-popover-close-btn:hover { color: #ef4444; }
+`;
 
 // --- HELPER FUNCTIONS ---
 const parseNumber = (val: any) => {
@@ -19,8 +36,7 @@ const normalizeName = (name: string) => {
     return name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 };
 
-// --- CUSTOM ALERT COMPONENT (TAILWIND) ---
-// Komponen kecil untuk menggantikan alert() bawaan browser
+// --- CUSTOM ALERT COMPONENT ---
 const CustomAlert = ({ isOpen, type, title, message, onConfirm, onCancel, confirmText = "OK", cancelText = "Batal", isConfirmMode = false }: any) => {
     if (!isOpen) return null;
 
@@ -63,6 +79,49 @@ const CustomAlert = ({ isOpen, type, title, message, onConfirm, onCancel, confir
     );
 };
 
+// --- WELCOME TOUR MODAL (NEW) ---
+const WelcomeTourModal = ({ isOpen, onStart, onSkip }: any) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative scale-100 animate-in zoom-in-95 duration-300 border border-white/20">
+        
+        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-emerald-600 to-teal-600"></div>
+        <div className="absolute top-4 right-4 text-white/20"><Sparkles size={80} /></div>
+
+        <div className="relative pt-12 px-8 pb-8 text-center">
+          <div className="w-20 h-20 bg-white rounded-2xl shadow-xl flex items-center justify-center mx-auto mb-6 relative z-10 transform rotate-3 hover:rotate-0 transition-all duration-500">
+             <Package size={40} className="text-emerald-600" />
+          </div>
+
+          <h2 className="text-2xl font-black text-slate-800 mb-3">Manajemen Gudang 📦</h2>
+          <p className="text-slate-500 text-sm leading-relaxed mb-8">
+            Kelola stok barang dengan mudah menggunakan <strong>AI Scan Nota</strong>. <br/>
+            Tidak perlu input manual satu per satu lagi!
+          </p>
+
+          <div className="space-y-3">
+            <button 
+              onClick={onStart}
+              className="w-full py-3.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-200 flex items-center justify-center gap-2 group"
+            >
+              <Navigation size={16} className="group-hover:translate-x-1 transition-transform"/>
+              Mulai Panduan
+            </button>
+            <button 
+              onClick={onSkip}
+              className="w-full py-3 bg-white text-slate-400 rounded-xl font-semibold text-xs hover:text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Lewati Tutorial
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function InventoryPage() {
   const { loading: authLoading } = useRoleGuard(['owner', 'admin']); 
   
@@ -84,10 +143,13 @@ export default function InventoryPage() {
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');
   
+  // State untuk Tour
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
   // State untuk Custom Alert
   const [alertConfig, setAlertConfig] = useState({
       isOpen: false,
-      type: 'info', // success, error, warning, info
+      type: 'info', 
       title: '',
       message: '',
       isConfirmMode: false,
@@ -96,6 +158,113 @@ export default function InventoryPage() {
       confirmText: 'OK',
       cancelText: 'Batal'
   });
+
+  // --- TOUR LOGIC ---
+  const startDriverTour = () => {
+    setShowWelcomeModal(false);
+
+    const driverObj = driver({
+      showProgress: true,
+      allowClose: true,
+      overlayColor: 'rgb(15 23 42 / 0.9)', 
+      animate: true,
+      popoverClass: 'driverjs-theme', 
+      nextBtnText: 'Lanjut',
+      prevBtnText: 'Kembali',
+      doneBtnText: 'Selesai',
+      
+      onPopoverRender: (popover) => {
+          const footer = popover.footer;
+          if (footer && !footer.querySelector('.custom-skip-btn')) {
+              const skipBtn = document.createElement('button');
+              skipBtn.innerText = 'Lewati';
+              skipBtn.className = 'custom-skip-btn';
+              skipBtn.style.cssText = `background: transparent; border: none; color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer; padding: 4px 8px; margin-right: auto; border-radius: 4px;`;
+              skipBtn.onmouseover = () => { skipBtn.style.backgroundColor = '#f1f5f9'; skipBtn.style.color = '#64748b'; };
+              skipBtn.onmouseout = () => { skipBtn.style.backgroundColor = 'transparent'; skipBtn.style.color = '#94a3b8'; };
+              skipBtn.onclick = () => { 
+                  driverObj.destroy(); 
+                  localStorage.setItem('hasSeenInventoryTour', 'true'); 
+              };
+              footer.style.display = 'flex'; footer.style.alignItems = 'center'; footer.style.justifyContent = 'flex-end'; footer.prepend(skipBtn);
+          }
+      },
+
+      steps: [
+        { 
+          element: '#tour-scan-upload', 
+          popover: { 
+            title: '1. Scan Nota Otomatis', 
+            description: 'Klik tombol ini untuk mengunggah foto nota pembelian barang. AI akan membaca nama barang, harga, dan jumlahnya secara otomatis.', 
+            side: "right", align: 'start' 
+          } 
+        },
+        { 
+          element: '#tour-manual-add', 
+          popover: { 
+            title: '2. Input Manual', 
+            description: 'Jika tidak punya foto nota, gunakan tombol ini untuk memasukkan data barang satu per satu secara manual.', 
+            side: "bottom", align: 'start' 
+          } 
+        },
+        { 
+          element: '#tour-draft-list', 
+          popover: { 
+            title: '3. Draft Barang', 
+            description: 'Hasil scan atau input manual akan muncul di sini. Anda bisa mengedit nama, harga, atau supplier sebelum disimpan.', 
+            side: "right", align: 'start' 
+          } 
+        },
+        { 
+          element: '#tour-save-btn', 
+          popover: { 
+            title: '4. Simpan ke Gudang', 
+            description: 'Setelah semua data benar, klik tombol ini untuk menyimpan stok ke database gudang.', 
+            side: "top", align: 'start' 
+          } 
+        },
+        { 
+          element: '#tour-inventory-list', 
+          popover: { 
+            title: '5. Daftar Stok', 
+            description: 'Semua barang yang tersimpan di gudang akan muncul di daftar ini. Anda bisa melihat stok saat ini, harga beli, dan harga jual.', 
+            side: "left", align: 'start' 
+          } 
+        },
+        { 
+          element: '#tour-supplier-btn', 
+          popover: { 
+            title: '6. Kelola Supplier', 
+            description: 'Klik di sini untuk menambah atau menghapus daftar supplier (pemasok barang).', 
+            side: "bottom", align: 'end' 
+          } 
+        },
+      ],
+      onDestroyStarted: () => { 
+          localStorage.setItem('hasSeenInventoryTour', 'true'); 
+          driverObj.destroy(); 
+      },
+    });
+
+    driverObj.drive();
+  };
+
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem('hasSeenInventoryTour');
+    if (!hasSeenTour) {
+        setShowWelcomeModal(true); 
+    }
+  }, []);
+
+  const handleSkipTour = () => {
+      localStorage.setItem('hasSeenInventoryTour', 'true');
+      setShowWelcomeModal(false);
+  };
+
+  const handleRestartTour = () => {
+      localStorage.removeItem('hasSeenInventoryTour');
+      setShowWelcomeModal(true);
+  };
 
   // --- HELPER: SHOW ALERT ---
   const showAlert = (type: string, title: string, message: string) => {
@@ -140,7 +309,7 @@ export default function InventoryPage() {
 
     const { data: dSuppliers } = await supabase.from('Suppliers').select('*').order('name', { ascending: true });
     if (dSuppliers) setSuppliers(dSuppliers);
-    return dSuppliers || []; // Return data agar bisa dipakai langsung
+    return dSuppliers || []; 
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -172,7 +341,6 @@ export default function InventoryPage() {
 
         const aiData = await response.json();
         
-        // 1. Sanitasi data dasar
         const cleanItems = (aiData.items || []).map((i: any) => ({
             ...i,
             harga_beli: parseNumber(i.harga_beli),
@@ -188,41 +356,31 @@ export default function InventoryPage() {
             return;
         }
 
-        // 2. LOGIKA SUPPLIER OTOMATIS
-        // Ambil nama supplier yang terdeteksi di item pertama (asumsi 1 nota = 1 supplier)
         const detectedSupplierName = cleanItems[0].supplier;
-        
         let finalItemsToSet = [...cleanItems];
 
         if (detectedSupplierName) {
-            // Ambil data supplier terbaru dari state (atau fetch ulang biar aman)
             const currentSuppliers = suppliers;
-            
-            // Cek apakah supplier sudah ada di DB?
             const existingSupplier = currentSuppliers.find(s => 
                 normalizeName(s.name) === normalizeName(detectedSupplierName)
             );
 
             if (existingSupplier) {
-                // KASUS A: Supplier Sudah Ada -> Langsung Pilih
                 finalItemsToSet = cleanItems.map((i: any) => ({ ...i, supplier: existingSupplier.name }));
                 setScannedItems(prev => [...finalItemsToSet, ...prev]);
                 showAlert('success', 'Scan Berhasil', `AI menemukan ${cleanItems.length} item dari "${existingSupplier.name}".`);
             } else {
-                // KASUS B: Supplier Baru -> Tawarkan Tambah
-                setScannedItems(prev => [...cleanItems, ...prev]); // Tampilkan dulu datanya
-                setAnalyzing(false); // Stop loading biar popup muncul enak
+                setScannedItems(prev => [...cleanItems, ...prev]); 
+                setAnalyzing(false); 
                 
                 showConfirm(
                     'warning',
                     'Supplier Baru Terdeteksi!',
                     `AI membaca supplier: "${detectedSupplierName}".\nData ini belum ada di database Anda.\n\nApakah Anda ingin menambahkannya sekarang?`,
                     async () => {
-                        // JIKA YES (ACC): Simpan ke DB -> Update Form
                         const { error } = await supabase.from('Suppliers').insert([{ name: detectedSupplierName }]);
                         if (!error) {
-                            const newSuppliers = await fetchData(); // Refresh dropdown
-                            // Update draft items agar suppliernya terpilih otomatis
+                            const newSuppliers = await fetchData(); 
                             setScannedItems(prev => prev.map(item => 
                                 item.supplier === detectedSupplierName ? { ...item, supplier: detectedSupplierName } : item
                             ));
@@ -232,18 +390,16 @@ export default function InventoryPage() {
                         }
                     },
                     () => {
-                        // JIKA NO (TOLAK): Kosongkan field supplier agar user isi manual
                         setScannedItems(prev => prev.map(item => ({ ...item, supplier: "" })));
                         showAlert('info', 'Supplier Ditolak', 'Silakan pilih supplier secara manual dari dropdown.');
                     },
-                    "Ya, Tambahkan", // Tombol ACC
-                    "Tidak, Abaikan" // Tombol TOLAK
+                    "Ya, Tambahkan", 
+                    "Tidak, Abaikan" 
                 );
                 e.target.value = ''; 
-                return; // Keluar function, biar ga double alert
+                return; 
             }
         } else {
-            // Jika AI tidak nemu nama supplier
             setScannedItems(prev => [...cleanItems, ...prev]); 
             showAlert('success', 'Scan Berhasil', `AI menemukan ${cleanItems.length} item! (Supplier tidak terbaca)`);
         }
@@ -315,7 +471,7 @@ export default function InventoryPage() {
           );
 
           if (targetMergeItem) {
-              setLoading(false); // Stop loading dulu biar popup muncul
+              setLoading(false); 
               showConfirm(
                   'warning',
                   'Duplikat Terdeteksi',
@@ -323,7 +479,6 @@ export default function InventoryPage() {
                   async () => {
                       setLoading(true);
                       setStatusMsg('Menggabungkan...');
-                      // Logika Merge
                       const newTotalStock = targetMergeItem.stok + inputQty;
                       let finalSupplier = targetMergeItem.supplier || "";
                       const inputSupplier = inputItem.supplier || "Umum";
@@ -351,10 +506,10 @@ export default function InventoryPage() {
                       fetchData();
                   },
                   () => {
-                      setLoading(false); // Batal simpan
+                      setLoading(false); 
                   }
               );
-              return; // Keluar function
+              return; 
 
           } else {
               // UPDATE BIASA
@@ -482,7 +637,11 @@ export default function InventoryPage() {
 
   return (
     <div className="h-screen bg-gray-50 text-slate-800 p-4 font-mono flex flex-col overflow-hidden relative">
-      
+      <style>{driverJsStyles}</style>
+
+      {/* MODAL WELCOME (Muncul pertama kali) */}
+      <WelcomeTourModal isOpen={showWelcomeModal} onStart={startDriverTour} onSkip={handleSkipTour} />
+
       {/* COMPONENT ALERT / MODAL CUSTOM */}
       <CustomAlert 
          isOpen={alertConfig.isOpen}
@@ -503,9 +662,15 @@ export default function InventoryPage() {
             subtitle="Input via Foto Nota atau Manual" 
             icon={Package} 
         />
-        <button onClick={() => setShowSupplierModal(true)} className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-2 shadow-sm transition">
-            <Truck size={14}/> Kelola Supplier
-        </button>
+        <div className="flex gap-2">
+            <button onClick={handleRestartTour} className="bg-white border border-slate-200 text-slate-500 px-3 py-2 rounded-lg text-xs font-bold hover:bg-slate-50 hover:text-emerald-600 flex items-center gap-2 shadow-sm transition" title="Panduan">
+                <HelpCircle size={14}/>
+            </button>
+            {/* ID TOUR: #tour-supplier-btn */}
+            <button id="tour-supplier-btn" onClick={() => setShowSupplierModal(true)} className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-2 shadow-sm transition">
+                <Truck size={14}/> Kelola Supplier
+            </button>
+        </div>
       </div>
       
       {/* CONTENT */}
@@ -524,12 +689,14 @@ export default function InventoryPage() {
                  </h3>
 
                  <div className="grid grid-cols-2 gap-3 mb-2">
-                     <label className="col-span-1 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition group">
+                     {/* ID TOUR: #tour-scan-upload */}
+                     <label id="tour-scan-upload" className="col-span-1 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition group">
                         <UploadCloud className="mb-1 group-hover:scale-110 transition"/>
                         <span className="text-[10px] font-bold">Scan Nota</span>
                         <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={analyzing} />
                      </label>
-                     <button onClick={addManualDraft} className="col-span-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg p-3 flex flex-col items-center justify-center transition group shadow-sm">
+                     {/* ID TOUR: #tour-manual-add */}
+                     <button id="tour-manual-add" onClick={addManualDraft} className="col-span-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg p-3 flex flex-col items-center justify-center transition group shadow-sm">
                         <Plus className="mb-1 group-hover:scale-110 transition"/>
                         <span className="text-[10px] font-bold">Manual</span>
                      </button>
@@ -538,7 +705,8 @@ export default function InventoryPage() {
           )}
 
           {/* FORM DRAFT */}
-          <div className={`flex-1 bg-white rounded-xl border flex flex-col relative overflow-hidden shadow-sm transition-all ${isEditing ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'}`}>
+          {/* ID TOUR: #tour-draft-list */}
+          <div id="tour-draft-list" className={`flex-1 bg-white rounded-xl border flex flex-col relative overflow-hidden shadow-sm transition-all ${isEditing ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'}`}>
              <div className={`p-3 border-b flex justify-between items-center shrink-0 ${isEditing ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
                 <h3 className={`text-xs font-bold ${isEditing ? 'text-amber-700' : 'text-slate-700'}`}>
                     {isEditing ? '✏️ EDIT DATA BARANG' : `Draft Input (${scannedItems.length})`}
@@ -563,7 +731,6 @@ export default function InventoryPage() {
                                     <div className="grid grid-cols-2 gap-2">
                                         <input type="text" placeholder="Kategori" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px]" value={item.kategori} onChange={e => handleDraftChange(idx, 'kategori', e.target.value)} />
                                         
-                                        {/* DROPDOWN SUPPLIER OTOMATIS TERPILIH */}
                                         <select 
                                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-600 outline-none cursor-pointer" 
                                             value={item.supplier} 
@@ -586,7 +753,8 @@ export default function InventoryPage() {
                     </div>
 
                     <div className="p-3 border-t border-slate-100 bg-slate-50 shrink-0">
-                        <button onClick={handleSaveAll} disabled={loading} className={`w-full text-white font-bold py-2.5 rounded-lg flex justify-center items-center gap-2 shadow-sm text-xs ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                        {/* ID TOUR: #tour-save-btn */}
+                        <button id="tour-save-btn" onClick={handleSaveAll} disabled={loading} className={`w-full text-white font-bold py-2.5 rounded-lg flex justify-center items-center gap-2 shadow-sm text-xs ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
                             {loading ? <><Loader2 className="animate-spin size={14}" /> {statusMsg || 'Proses...'}</> : <><Save size={14}/> {isEditing ? 'SIMPAN PERUBAHAN' : 'SIMPAN KE GUDANG'}</>}
                         </button>
                     </div>
@@ -602,7 +770,8 @@ export default function InventoryPage() {
         </div>
 
         {/* KOLOM KANAN: TABEL GUDANG (8/12) */}
-        <div className="lg:col-span-8 h-full overflow-hidden">
+        {/* ID TOUR: #tour-inventory-list */}
+        <div className="lg:col-span-8 h-full overflow-hidden" id="tour-inventory-list">
           <div className="bg-white rounded-xl border border-slate-200 h-full flex flex-col shadow-sm relative">
              <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">

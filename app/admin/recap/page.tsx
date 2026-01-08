@@ -159,12 +159,14 @@ export default function RecapPage() {
       
       {/* BAGIAN ATAS YANG DIAM (HEADER & KONTROL) */}
       <div className="p-6 pb-0 shrink-0 z-20 relative">
-        <PageHeader
-          title="Rekapitulasi Servis"
-          subtitle="Pantau riwayat dan analisis jumlah kendaraan yang telah selesai diservis."
-          icon={BarChart3}
+      
+<div className="shrink-0 mb-4 flex justify-between items-end">
+        <PageHeader 
+            title="Rekapitulasi Servis" 
+            subtitle="Pantau riwayat dan analisis jumlah kendaraan yang telah selesai diservis." 
+            icon={BarChart3}
         />
-
+      </div>
         <div className="max-w-5xl mx-auto mt-6">
           {/* CONTROL PANEL & SUMMARY */}
           <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">

@@ -39,12 +39,16 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-800 p-4 sm:p-6 font-mono">
-      <PageHeader 
-        title="Pengaturan Bengkel" 
-        subtitle="Konfigurasi Identitas Aplikasi & Struk" 
-        icon={Store}
-        
-      />
+      
+      {/* HEADER COMPACT (Sesuai Request) */}
+      <div className="shrink-0 mb-4 flex justify-between items-end">
+        <PageHeader 
+            title="Pengaturan Bengkel" 
+            subtitle="Konfigurasi Identitas Aplikasi & Struk" 
+            icon={Store}
+        />
+        {/* Opsional: Tombol Kembali atau Aksi Lain bisa ditaruh di sini */}
+      </div>
 
       <div className="max-w-3xl mx-auto">
           <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">

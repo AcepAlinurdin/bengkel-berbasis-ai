@@ -4,9 +4,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey || "");
 
-// --- ALGORITMA LEVENSHTEIN (MENDETEKSI TYPO) ---
-// Menghitung jumlah huruf yang beda antara dua kata
+// --- 1. ALGORITMA LEVENSHTEIN ---
 const levenshtein = (a, b) => {
+    if (!a || !b) return 999;
     const matrix = [];
     let i, j;
     if (a.length === 0) return b.length;
@@ -21,8 +21,8 @@ const levenshtein = (a, b) => {
                 matrix[i][j] = matrix[i - 1][j - 1];
             } else {
                 matrix[i][j] = Math.min(
-                    matrix[i - 1][j - 1] + 1, // Substitusi
-                    Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1) // Insert/Delete
+                    matrix[i - 1][j - 1] + 1,
+                    Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
                 );
             }
         }
@@ -30,7 +30,32 @@ const levenshtein = (a, b) => {
     return matrix[b.length][a.length];
 };
 
-// --- HELPER 1: PEMBERSIH TEKS ---
+// --- 2. HELPER: PEMBERSIH JSON (UPDATE LEBIH KUAT) ---
+const cleanJsonString = (text) => {
+    if (!text) return "{}";
+    
+    // Hapus markdown ```json ... ```
+    let clean = text.replace(/```json/g, "").replace(/```/g, "");
+    
+    // Cari object JSON pertama menggunakan Regex (Mencari kurung kurawal terluar)
+    // Regex ini mencocokkan { ... } termasuk multiline
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+        return jsonMatch[0];
+    }
+    
+    // Fallback jika regex gagal
+    const firstOpen = clean.indexOf('{');
+    const lastClose = clean.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+        return clean.substring(firstOpen, lastClose + 1);
+    }
+    
+    return "{}"; // Return object kosong jika gagal total
+};
+
+// --- 3. HELPER: PEMBERSIH NAMA BARANG ---
 const cleanItemName = (name) => {
     if (!name) return "";
     let cleaned = name.replace(/,/g, ' '); 
@@ -41,24 +66,6 @@ const cleanItemName = (name) => {
     });
 };
 
-// --- HELPER 2: AUTO RETRY ---
-async function generateWithRetry(model, parts, maxRetries = 3) {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            const result = await model.generateContent(parts);
-            return result;
-        } catch (error) {
-            if (error.message.includes('503') || error.message.includes('Overloaded') || error.message.includes('500')) {
-                console.warn(`⚠️ Model overloaded (Percobaan ${i + 1}/${maxRetries})...`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            } else {
-                throw error;
-            }
-        }
-    }
-    throw new Error("Server Google sibuk (503). Silakan coba lagi nanti.");
-}
-
 export async function POST(req) {
   try {
     if (!apiKey) return NextResponse.json({ error: "Server API Key is missing" }, { status: 500 });
@@ -68,90 +75,104 @@ export async function POST(req) {
 
     if (!imageBase64) return NextResponse.json({ error: "No image data" }, { status: 400 });
 
+    // Gunakan Model Stabil 1.5 Flash
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
-        generationConfig: { temperature: 0.0, topP: 1, maxOutputTokens: 2000 }
+        model: "gemini-2.5-flash-lite",
+        generationConfig: { 
+            responseMimeType: "application/json",
+            temperature: 0.1,
+            maxOutputTokens: 2000 
+        }
     });
 
-    const prompt = `Kamu adalah asisten admin gudang bengkel. Tugasmu adalah membaca gambar nota/faktur belanja dan mengekstrak data BELANJA BARANG FISIK (Sparepart) saja.
-
-    Instruksi:
-    1. Cari nama toko/distributor di kop nota sebagai 'supplier'.
-    2. Identifikasi setiap baris barang. Ambil nama barang, jumlah (qty), dan harga satuan.
-    3. Jika harga yang tertera adalah harga total, bagi dengan qty untuk dapat harga satuan.
-    4. Tentukan kategori otomatis default 'Sparepart'.
-    5. Perkirakan harga jual (margin keuntungan Rp 5.000 - Rp 10.000), bulatkan ke ribuan terdekat.
-    6. HAPUS kode internal toko yang membingungkan dari nama barang.
+    const prompt = `
+    Kamu adalah sistem OCR cerdas khusus bengkel motor.
+    Tugas: Ekstrak daftar BARANG/SPAREPART dari gambar nota ini.
     
-    Output WAJIB Format JSON murni (Array of Objects):
+    ATURAN FILTERING:
+    1. HANYA ambil barang fisik.
+    2. JANGAN ambil Jasa/Service.
+    3. Output JSON murni.
+
+    Output JSON Format:
     {
       "items": [
         {
-          "nama_barang": "Nama Item",
+          "nama_barang": "Nama Barang",
           "kategori": "Sparepart",
-          "qty": 2,
-          "harga_beli": 50000,
-          "harga_jual": 65000,
+          "qty": 1,
+          "harga_beli": 10000,
+          "harga_jual": 13000,
           "supplier": "Nama Toko"
         }
       ]
-    }`;
+    }
+    `;
 
-    const result = await generateWithRetry(model, [
-      prompt,
-      { inlineData: { data: imageBase64, mimeType: mimeType } }
+    const result = await model.generateContent([
+        prompt,
+        { inlineData: { data: imageBase64, mimeType: mimeType } }
     ]);
 
-    const response = await result.response;
-    let text = response.text();
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const response = result.response;
+    const rawText = response.text();
     
-    let data = JSON.parse(text);
+    // --- DEBUGGING: LIHAT HASIL AI DI TERMINAL VS CODE ---
+    console.log("--- RAW AI OUTPUT START ---");
+    console.log(rawText);
+    console.log("--- RAW AI OUTPUT END ---");
 
-    // ============================================================
-    // 🛡️ FILTER "SATPAM" CERDAS (FUZZY LOGIC)
-    // ============================================================
+    const cleanedText = cleanJsonString(rawText);
+    
+    let data;
+    try {
+        data = JSON.parse(cleanedText);
+    } catch (parseError) {
+        console.error("JSON Parse Error. Cleaned text was:", cleanedText);
+        // Jika gagal parsing, return error spesifik biar tau kenapa
+        throw new Error("Gagal membaca struktur data nota (Invalid JSON). Coba foto ulang nota dengan lebih jelas.");
+    }
+
+    // --- FILTERISASI DATA ---
     if (data.items && Array.isArray(data.items)) {
-        
-        // Daftar kata terlarang (Jasa)
         const forbiddenWords = [
             'jasa', 'ongkos', 'biaya', 'service', 'servis', 
-            'pasang', 'install', 'repair', 'cek', 'tune', 'bongkar', 'labor','ganti'
+            'pasang', 'install', 'repair', 'cek', 'tune', 'bongkar', 'labor', 'ganti'
         ];
         
-        data.items = data.items.filter(item => {
-            const nameWords = item.nama_barang.toLowerCase().split(' ');
+        data.items = data.items.filter((item) => {
+            if (!item.nama_barang) return false;
             
-            // Cek setiap kata di nama barang
-            const isService = nameWords.some(wordInName => {
-                // Bandingkan dengan setiap kata terlarang
+            const itemNameStr = String(item.nama_barang).toLowerCase();
+            const nameWords = itemNameStr.split(' ');
+            
+            const isService = nameWords.some((wordInName) => {
                 return forbiddenWords.some(badWord => {
-                    // 1. Cek Sama Persis
                     if (wordInName === badWord) return true;
-                    
-                    // 2. Cek Typo (Levenshtein Distance)
-                    // Jika panjang kata > 3 huruf, toleransi typo 1 huruf
-                    // Contoh: "Jaso" (jarak 1 dari Jasa) -> TRUE
-                    if (badWord.length > 3 && levenshtein(wordInName, badWord) <= 1) return true;
-                    
+                    if (wordInName.length > 3 && badWord.length > 3) {
+                        if (levenshtein(wordInName, badWord) <= 1) return true;
+                    }
                     return false;
                 });
             });
             
-            if (isService) console.log(`🗑️ Menghapus Item Jasa (Typo Detected): ${item.nama_barang}`);
-            
-            return !isService; // Kembalikan true jika BUKAN service
+            return !isService; 
         });
 
-        // Normalisasi
-        data.items = data.items.map(item => {
+        // Normalisasi Data
+        data.items = data.items.map((item) => {
+            const defaultSupplier = data.items[0]?.supplier || "";
+            const rawName = typeof item.nama_barang === 'string' ? item.nama_barang : '';
+            const rawSupplier = typeof item.supplier === 'string' ? item.supplier : '';
+
             return {
                 ...item,
-                nama_barang: cleanItemName(item.nama_barang),
-                supplier: cleanItemName(item.supplier),
-                qty: parseInt(item.qty) || 0,
-                harga_beli: parseInt(item.harga_beli) || 0,
-                harga_jual: parseInt(item.harga_jual) || 0
+                nama_barang: cleanItemName(rawName),
+                supplier: cleanItemName(rawSupplier || (typeof defaultSupplier === 'string' ? defaultSupplier : '')),
+                qty: parseInt(String(item.qty)) || 1,
+                harga_beli: parseInt(String(item.harga_beli)) || 0,
+                harga_jual: parseInt(String(item.harga_jual)) || 0,
+                kategori: item.kategori || "Sparepart" 
             };
         });
     }
@@ -159,7 +180,10 @@ export async function POST(req) {
     return NextResponse.json(data);
 
   } catch (error) {
-    console.error("AI Error Detailed:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("AI Scan Error:", error);
+    if (error.message?.includes('429')) {
+        return NextResponse.json({ error: "Server AI Sibuk (Limit). Coba 10 detik lagi." }, { status: 429 });
+    }
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

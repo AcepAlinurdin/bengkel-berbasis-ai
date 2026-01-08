@@ -126,52 +126,72 @@ export default function AdminPage() {
     };
 
     // --- FUNGSI BARU: DIPANGGIL SAAT TOMBOL KONFIRMASI DI MODAL DITEKAN ---
+    // --- FUNGSI PERBAIKAN: HANDLE CONFIRM DONE ---
+    // --- FUNGSI PERBAIKAN: INSERT LOG (SUPAYA DATA TIDAK HILANG) ---
     const handleConfirmDone = async () => {
         if (!selectedTicketId) return;
 
         try {
-            // 1. Ambil data tiket untuk mendapatkan mechanic_id
-            //    Kita TIDAK PERLU select complexity_level di sini karena kita akan mengisinya sekarang.
+            console.log("Memproses penyelesaian tiket ID:", selectedTicketId);
+
+            // 1. Ambil data tiket
             const { data: ticketData, error: ticketError } = await supabase
                 .from('Antrian')
-                .select('mechanic_id') 
+                .select('mechanic_id, id, no_antrian') // Ambil no_antrian buat log
                 .eq('id', selectedTicketId)
                 .single();
 
-            if (ticketError || !ticketData) {
-                throw new Error("Gagal mengambil data tiket.");
-            }
+            if (ticketError || !ticketData) throw new Error("Tiket tidak ditemukan.");
 
-            // 2. Update tabel Mechanics jika ada mekanik yang ditugaskan
+            // 2. Tentukan Poin (Opsional: Bagus buat laporan gaji nanti)
+            let points = 1;
+            if (selectedComplexity === 'Sedang') points = 2;
+            if (selectedComplexity === 'Berat') points = 3;
+
+            // 3. JIKA ADA MEKANIK: CATAT KE BUKU JURNAL (INSERT, BUKAN UPDATE)
             if (ticketData.mechanic_id) {
-                const { error: mechUpdateError } = await supabase
-                    .from('Mechanics')
-                    .update({
-                        complexity_level: selectedComplexity, // GUNAKAN YANG DIPILIH ADMIN
-                        completed_at: new Date().toISOString(),
-                    })
-                    .eq('id', ticketData.mechanic_id);
-
-                if (mechUpdateError) console.error("Gagal mengupdate data mekanik:", mechUpdateError);
+                // A. Masukkan ke tabel Logs (Riwayat tidak akan hilang)
+                // Pastikan Anda sudah membuat tabel 'MechanicLogs' di Supabase
+                // Jika belum buat tabel, bagian ini bisa di-skip atau akan error.
+                const { error: logError } = await supabase
+                    .from('MechanicLogs') 
+                    .insert([
+                        {
+                            mechanic_id: ticketData.mechanic_id,
+                            ticket_id: ticketData.id,
+                            complexity: selectedComplexity,
+                            points: points,
+                            created_at: new Date().toISOString()
+                        }
+                    ]);
+                
+                if (logError) console.warn("Gagal simpan log (Mungkin tabel belum dibuat):", logError.message);
             }
 
-            // 3. Update status tiket menjadi 'done' DAN simpan complexity_level di tabel Antrian juga (opsional tapi bagus untuk data historis tiket)
+            // 4. UPDATE STATUS TIKET (Tabel Antrian adalah riwayat utama)
+            // Simpan juga complexity_level di sini agar history per customer aman
             const { error: updateError } = await supabase
                 .from('Antrian')
                 .update({ 
                     status: 'done',
-                    complexity_level: selectedComplexity // Simpan juga di tabel Antrian
+                    complexity_level: selectedComplexity, // Simpan kesulitan di tiket juga
+                    completed_at: new Date().toISOString() // Tandai waktu selesai
                 })
                 .eq('id', selectedTicketId);
 
             if (updateError) throw updateError;
 
+            console.log("Tiket selesai dan tercatat di riwayat.");
+            
+            // 5. Refresh Data
             setLastUpdate(new Date());
-            setIsModalOpen(false); // Tutup modal setelah berhasil
+            setIsModalOpen(false); 
+            setSelectedTicketId(null);
+            fetchData(); 
 
-        } catch (err) {
-            console.error("Terjadi kesalahan saat menyelesaikan tiket:", err);
-            alert("Gagal menyelesaikan tiket. Cek konsol.");
+        } catch (err: any) {
+            console.error("Error:", err);
+            alert(`Gagal: ${err.message}`);
         }
     };
 
@@ -234,11 +254,14 @@ export default function AdminPage() {
 
 
             {/* HEADER */}
-            <PageHeader
-                title="Admin Dashboard"
-                subtitle={`Operasional Harian - ${formatDate(new Date().toISOString())}`}
-                icon={Bot}
-                actions={
+          
+
+            <div className="shrink-0 mb-4 flex justify-between items-end">
+        <PageHeader 
+            title="Admin Dashboard" 
+            subtitle={`Operasional Harian - ${formatDate(new Date().toISOString())}`}
+            icon={Bot}
+             actions={
                     <div className="flex flex-wrap gap-2 justify-end">
                         <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-200">
                             <Activity size={16} className="text-emerald-600 animate-pulse" />
@@ -246,7 +269,8 @@ export default function AdminPage() {
                         </div>
                     </div>
                 }
-            />
+        />
+      </div>
 
             <div className="grid lg:grid-cols-4 gap-6">
 

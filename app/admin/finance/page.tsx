@@ -104,12 +104,15 @@ export default function FinancePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-800 p-6 font-mono">
-      <PageHeader 
-        title="Laporan Keuangan" 
-        subtitle="Analisis Profit & Arus Kas Bengkel"
-        icon={Wallet}
-        
-      />
+     
+
+<div className="shrink-0 mb-4 flex justify-between items-end">
+  <PageHeader 
+    title="Laporan Keuangan" 
+    subtitle="Analisis Profit & Arus Kas Bengkel" 
+     icon={Wallet}
+  />
+</div>
 
       <div className="max-w-7xl mx-auto space-y-8">
           
