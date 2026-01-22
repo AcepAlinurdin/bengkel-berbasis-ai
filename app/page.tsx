@@ -61,8 +61,17 @@ const PaymentModal = ({ isOpen, onClose, onSuccess, amount, bookingDetails }: an
                 })
             });
 
+<<<<<<< HEAD
             const data = await response.json();
             if (!data.token) throw new Error("Gagal mendapatkan token pembayaran");
+=======
+          <h2 className="text-2xl font-black text-slate-800 mb-3">Selamat Datang</h2>
+          <p className="text-slate-500 text-sm leading-relaxed mb-8">
+            Apakah kamu pertama kali <strong>memakai sistem antrian berbasis AI?</strong> <br/>
+            Saya akan memandu Anda bagaimana cara membuat antrian di sistem antrian bengkel MOVIO ini.
+            jika anda seorang staf bengkel silahkan klik tombol staf untuk masuk ke sistem.
+          </p>
+>>>>>>> 3ecd09cc0de4d26b79fc7a7418581a9748ebd46c
 
             // 2. Buka Snap Popup Midtrans
             // Menggunakan (window as any) untuk bypass pengecekan TypeScript pada properti snap
@@ -451,7 +460,15 @@ export default function UserPage() {
       <style>{driverJsStyles}</style>
       <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} onSuccess={handlePaymentSuccess} amount={50000} bookingDetails={{ plate, name, phone }} />
 
+<<<<<<< HEAD
       <div className="bg-white p-4 shadow-sm border-b sticky top-0 z-40 flex justify-between items-center">
+=======
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-200" id="tour-welcome">
+         <div className="flex items-center gap-4 mb-4 sm:mb-0">
+            <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200"><Bike size={24} /></div>
+            <div><h1 className="text-xl font-black text-slate-800 tracking-tight">BENGKEL MOVIO</h1><p className="text-xs text-slate-500 font-medium">Sistem Antrian Cerdas Berbasis AI</p></div>
+         </div>
+>>>>>>> 3ecd09cc0de4d26b79fc7a7418581a9748ebd46c
          <div className="flex items-center gap-3">
             <div className="bg-blue-600 p-2 rounded-lg text-white"><Bike size={20} /></div>
             <div><h1 className="font-black text-slate-800 text-lg leading-none">MOVIO</h1><span className="text-[10px] text-slate-500 font-bold">Smart Workshop</span></div>
