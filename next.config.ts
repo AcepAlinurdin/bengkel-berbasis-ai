@@ -1,45 +1,34 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Pastikan konfigurasi images/lainnya yang sudah ada TETAP DISINI
-  // Contoh:
-  // images: { domains: ['supabase.co', 'images.unsplash.com'] }, 
-
+  reactStrictMode: false,
+  images: {
+    domains: ['app.sandbox.midtrans.com'],
+  },
   async headers() {
     return [
       {
-        // Terapkan aturan ini ke semua rute
-        source: '/:path*',
+        source: '/(.*)',
         headers: [
           {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on'
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self'; 
+              script-src 'self' 'unsafe-eval' 'unsafe-inline' https://app.sandbox.midtrans.com https://api.midtrans.com; 
+              style-src 'self' 'unsafe-inline'; 
+              img-src 'self' blob: data:; 
+              font-src 'self'; 
+              object-src 'none'; 
+              base-uri 'self'; 
+              form-action 'self'; 
+              frame-ancestors 'none'; 
+              frame-src 'self' https://app.sandbox.midtrans.com https://api.midtrans.com; 
+              connect-src 'self' https://app.sandbox.midtrans.com https://api.midtrans.com https://*.supabase.co wss://*.supabase.co;
+            `.replace(/\s{2,}/g, ' ').trim() 
           },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY' // Mengatasi skor -20 (Anti Clickjacking)
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff' // Mengatasi skor -5
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
-          },
-          {
-           key: 'Content-Security-Policy',
-            // PERUBAHAN ADA DI BAWAH INI (bagian connect-src):
-            // Kita menambahkan 'wss:' agar Supabase Realtime tidak diblokir.
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; font-src 'self'; connect-src 'self' https: wss:;"
-          }
-        ]
-      }
-    ]
-  }
+        ],
+      },
+    ];
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

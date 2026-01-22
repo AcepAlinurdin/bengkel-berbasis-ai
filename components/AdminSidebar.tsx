@@ -156,8 +156,8 @@ export default function AdminSidebar() {
             <Wrench size={24} />
           </div>
           <div>
-            <h1 className="font-black text-xl text-slate-800 tracking-tight">BENGKEL AI</h1>
-            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full w-fit">Beta 0.1</p>
+            <h1 className="font-black text-xl text-slate-800 tracking-tight">BENGKEL MOVIO</h1>
+            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full w-fit">Beta 0.2</p>
           </div>
         </div>
 
